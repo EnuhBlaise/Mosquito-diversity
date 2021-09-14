@@ -1,0 +1,354 @@
+
+
+#1. Loading data and preparation
+library(readxl)
+datapath = "C:/Users/Blaisonyl/Desktop/David_Research/Data/DATA_TO_BLAISE.xlsx"
+data <- read_excel(datapath)
+head(data)
+
+#load all packages needed
+library(dplyr)
+library(ggplot2)
+library(mice)
+library(tidyverse)
+library(janitor)
+library(kableExtra)
+library(AER)
+library(vegan)
+library(fossil)
+library(tinytex)
+
+#2. Data preprocessing
+
+#check missing data
+missing = is.na(data)
+missing2 = data %>% filter(!complete.cases(data))
+
+#Give the column names the appropriate syntax names temporarily store in dew df called data_new1
+data_new1 <- data                  
+colnames(data_new1) <- gsub(" ", "_", colnames(data_new1))
+View(data_new1)                       
+
+
+#I want a subset of the data i need only, so I be selecting just that and put in a df called data1
+
+data1 = data_new1 %>% select(species_id, sex, 
+                             Habitat_type, Trap_type, bait_type, 
+                             Trap_colour, camp_site, Season, `Relative_humidity_%`)
+str(data1)
+
+#Convert tibble to df called data2
+data2 = as.data.frame(data1)
+data2[data2 =='Camp 1'] <- 'camp 1'
+data2[data2 =='Camp 2'] <- 'camp 2'
+data2[data2 =='Processing tent'] <- 'processing tent'
+data2[data2 =='Net trap'] <- 'net trap'
+
+
+
+
+#I want all chrs to be factors so converting them all.
+data2[sapply(data2, is.character)] <- lapply(data2[sapply(data2, is.character)], 
+                                       as.factor)
+
+
+
+#So we used data2 henceforth for analysis, atleast for the moment
+
+#Computation
+
+#3. Computations for Abundances
+#3.1 Abundance of species per Habitat type
+
+data2 %>% tabyl(species_id, Habitat_type) %>% {. ->> habitat } %>% 
+  adorn_totals( where = 'row') %>%
+  adorn_totals( where = 'col') %>%
+  kbl(caption = "Abundance of species per Habitat type") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+
+#Preprocessing and ANOVA
+colnames(habitat)<- c('species_id','forest_edge', 'Fragmented', 'Pristine', 'young_plantation')
+a = gather(habitat, "Habitat_type", "Abundance", 2:5)
+oneway <- aov(Abundance ~ Habitat_type, data = a)
+summary(oneway)
+
+
+#3.2 Abundance of species per camp site
+
+data2 %>% tabyl(species_id, camp_site) %>% {. ->> Camp } %>% 
+  adorn_totals( where = 'row') %>%
+  adorn_totals( where = 'col') %>%
+  kbl(caption = "Abundance of species per campsite") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+
+#Preprocessing and ANOVA
+colnames(Camp)<- c('species_id','camp_1','camp_2', 'camp_4', 'camp_5', 'camp_6') 
+Camp1 = Camp %>% gather( "Camp_site", "Abundance", 2:6) 
+  aov(Abundance ~ Camp_site, data = Camp1) %>% 
+  summary()
+
+
+#3.3 Abundance of species per trap types
+
+data2 %>% tabyl(species_id, Trap_type) %>% {. ->> Trap } %>% 
+  adorn_totals( where = 'row') %>%
+  adorn_totals( where = 'col') %>%
+  kbl(caption = "Abundance of species per Trap type") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+
+#Preprocessing and ANOVA
+#colnames(Trap)<- c('species_id','camp_1','camp_2', 'camp_4', 'camp_5', 'camp_6') 
+Trap1 = Trap %>% gather( "Trap_type", "Abundance", 2:14) 
+aov(Abundance ~ Trap_type, data = Trap1) %>% 
+  summary()
+
+
+#3.4 Abundance of species per season
+
+data2 %>% tabyl(species_id, Season) %>% {. ->> Season } %>%
+  adorn_totals( where = 'row') %>%
+  adorn_totals( where = 'col') %>%
+  kbl(caption = "Abundance of species per Season") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+
+#Preprocessing and ANOVA
+Season1 = Season %>% gather( "Season", "Abundance", !1) 
+aov(Abundance ~ Season, data = Season1) %>% 
+  summary()
+
+
+#3.4 Abundances per bait type
+
+data2 %>% tabyl(species_id, bait_type) %>% {. ->> Bait } %>%
+  adorn_totals( where = 'row') %>%
+  adorn_totals( where = 'col') %>%
+  kbl(caption = "Abundance of species per bait type") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+
+
+#Preprocessing and ANOVA
+Bait1 = Bait %>% gather( "Bait", "Abundance", !1) 
+aov(Abundance ~ Bait, data = Bait1) %>% 
+  summary()
+
+#3.5 Abundance per trap colour
+
+data2 %>% tabyl(species_id, Trap_colour) %>% {. ->> TrapC } %>%
+  adorn_totals( where = 'row') %>%
+  adorn_totals( where = 'col') %>%
+  kbl(caption = "Abundance of species per trap colour") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+
+#Preprocessing and ANOVA
+TrapC1 = TrapC %>% gather( "TrapC", "Abundance", !1) 
+aov(Abundance ~ TrapC, data = TrapC1) %>% 
+  summary()
+
+
+#3.6 Comparing males and females in different camps
+
+data2 %>% tabyl(sex, camp_site) %>% {. ->> CampS } %>%
+  adorn_totals( where = 'row') %>%
+  adorn_totals( where = 'col') %>%
+  kbl(caption = "Comparison of males and females in different camps") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+
+#Preprocessing and ANOVA
+CampS1 = CampS %>% gather( "CampS", "Abundance", !1) 
+aov(Abundance ~ CampS, data = CampS1) %>% 
+  summary()
+
+
+#4 General linear model for abundance and related factors
+#Still need clear instructions on this 
+
+
+
+#5 Diversity Studies
+#5.1 diversity according to camps
+
+data2[data2 =='Camp 1'] <- 'camp 1'
+data2[data2 =='Camp 2'] <- 'camp 2'
+
+#Shannon index
+data2 %>% tabyl(camp_site, species_id) %>% 
+  untabyl() %>% 
+  select(!camp_site)%>% 
+  diversity(index = "shannon") %>% 
+  cbind(c('Camp_1', 'Camp_2', 'Camp_4', 'Camp_5', 'Camp_6')) %>%  
+  kbl(caption = "Shannon indexes per camp site") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+
+#Simpsons index
+data2 %>% tabyl(camp_site, species_id) %>% 
+  untabyl() %>% 
+  select(!camp_site)%>% 
+  diversity(index = "simpson") %>% 
+  cbind(c('Camp_1', 'Camp_2', 'Camp_4', 'Camp_5', 'Camp_6')) %>%  
+  kbl(caption = "Simpson indexes per camp site") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+
+#ACE 
+data2 %>% tabyl(species_id, camp_site) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, ACE)
+#Chao1
+data2 %>% tabyl(species_id, camp_site) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, chao1)
+
+
+
+#5.2 Diversity according to seasons
+#Shannon index
+data2 %>% tabyl(Season, species_id) %>% 
+  untabyl() %>% 
+  select(!Season)%>% 
+  diversity(index = "shannon") %>% 
+  cbind(c('Dry season', 'Early dry season', 'Early rains', 'Heavy rains')) %>%  
+  kbl(caption = "Shannon indexes per season") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+
+#Simpsons index
+data2 %>% tabyl(Season, species_id) %>% 
+  untabyl() %>% 
+  select(!Season)%>% 
+  diversity(index = "simpson") %>% 
+  cbind(c('Dry season', 'Early dry season', 'Early rains', 'Heavy rains')) %>%  
+  kbl(caption = "Simpson indexes per season") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+
+#ACE 
+data2 %>% tabyl(species_id, Season) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, ACE)
+#Chao1
+data2 %>% tabyl(species_id, Season) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, chao1)
+
+
+#5.3 Diversity according to habitat
+
+#Shannon index
+data2 %>% tabyl(Habitat_type, species_id) %>% 
+  untabyl() %>% 
+  select(!Habitat_type)%>% 
+  diversity(index = "shannon") %>% 
+  cbind(c('Forest Edge', 'Fragmented', 'Pristine', 'Young plantation')) %>%  
+  kbl(caption = "Shannon indexes per Habitat type") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+
+#Simpsons index
+data2 %>% tabyl(Habitat_type, species_id) %>% 
+  untabyl() %>% 
+  select(!Habitat_type)%>% 
+  diversity(index = "simpson") %>% 
+  cbind(c('Forest Edge', 'Fragmented', 'Pristine', 'Young plantation')) %>%  
+  kbl(caption = "Simpson indexes per Habitat type") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+
+#ACE 
+data2 %>% tabyl(species_id, Habitat_type) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, ACE)
+#Chao1
+data2 %>% tabyl(species_id, Habitat_type) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, chao1)
+
+
+
+
+#5.4 Diversity according to Trap type
+
+#Shannon index
+data2 %>% tabyl(Trap_type, species_id) %>% 
+  untabyl() %>% 
+  select(!Trap_type)%>% 
+  diversity(index = "shannon") %>% 
+  cbind(c('bamboo pot', 'cocoa pod', 'coconut shell', 'cooking pot', 
+          'dead leaves on ground','net trap', 'plastic cup', 
+          'processing tent', 'resting cage', 'rock pool' , 'sardine can', 'snail shell',
+          'sweep net', 'tapolene')) %>%  
+  kbl(caption = "Shannon indexes per Trap type") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+
+#Simpson index
+data2 %>% tabyl(Trap_type, species_id) %>% 
+  untabyl() %>% 
+  select(!Trap_type)%>% 
+  diversity(index = "simpson") %>% 
+  cbind(c('bamboo pot', 'cocoa pod', 'coconut shell', 'cooking pot', 
+          'dead leaves on ground','net trap', 'plastic cup', 
+          'processing tent', 'resting cage', 'rock pool' , 'sardine can', 'snail shell',
+          'sweep net', 'tapolene')) %>%  
+  kbl(caption = "Simpson indexes per Trap type") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+
+
+#ACE 
+data2 %>% tabyl(species_id, Trap_type) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, ACE)
+#Chao1
+data2 %>% tabyl(species_id, Trap_type) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, chao1)
+
+
+#5.5 Diversity according to Bait type
+
+#Shannon index
+data2 %>% tabyl(bait_type, species_id) %>% 
+  untabyl() %>% 
+  select(!bait_type)%>% 
+  diversity(index = "shannon") %>% 
+  cbind(c('body odor', 'chicken', 'CO2', 'nil', 
+          'others','pigeon')) %>%  
+  kbl(caption = "Shannon indexes per bait type") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+
+#Simpson index
+data2 %>% tabyl(bait_type, species_id) %>% 
+  untabyl() %>% 
+  select(!bait_type)%>% 
+  diversity(index = "simpson") %>% 
+  cbind(c('body odor', 'chicken', 'CO2', 'nil', 
+          'others','pigeon')) %>%  
+  kbl(caption = "Simpson indexes per bait type") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+
+
+#ACE 
+data2 %>% tabyl(species_id, bait_type) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, ACE)
+#Chao1
+data2 %>% tabyl(species_id, bait_type) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, chao1)
+
+
+#5.6 Diversity according to trap colour
+#Shannon index
+data2 %>% tabyl(Trap_colour, species_id) %>% 
+  untabyl() %>% 
+  select(!Trap_colour)%>% 
+  diversity(index = "shannon") %>% 
+  cbind(c('black', 'blue', 'green', 'others', 
+          'pink','white')) %>%  
+  kbl(caption = "Shannon indexes per trap colour") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+
+#Simpson index
+data2 %>% tabyl(Trap_colour, species_id) %>% 
+  untabyl() %>% 
+  select(!Trap_colour)%>% 
+  diversity(index = "simpson") %>% 
+  cbind(c('black', 'blue', 'green', 'others', 
+          'pink','white')) %>%  
+  kbl(caption = "Simpson indexes per trap colour") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+
+
+#ACE 
+data2 %>% tabyl(species_id, Trap_colour) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, ACE)
+#Chao1
+data2 %>% tabyl(species_id, Trap_colour) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, chao1)
+
+
+
+#Correlations between microclimates not understood
