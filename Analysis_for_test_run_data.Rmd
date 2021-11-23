@@ -1,0 +1,539 @@
+---
+title: "Analysis for test run data"
+author: "Enuh"
+date: "October 1, 2021"
+output:
+  html_document: default
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+####Preparatory####
+
+
+**1.Preparatory**
+```{r}
+##Load requirements
+library(readxl)
+datapath = "C:/Users/Blaisonyl/Desktop/Help/David_Research/DataAndReports/Data_set_trap_color_and_bait.xlsx"
+data <- read_excel(datapath)
+head(data)
+View(data)
+```
+
+
+
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(mice)
+library(tidyverse)
+library(janitor)
+library(kableExtra)
+library(AER)
+library(vegan)
+library(fossil)
+library(tinytex)
+```
+
+```{r}
+##check missing data
+missing = is.na(data)
+missing2 = data %>% filter(!complete.cases(data))
+```
+
+#Give the column names the appropriate syntax names temporarily store in dew df called data_new1
+```{r}
+data_new1 <- data                  
+colnames(data_new1) <- gsub(" ", "_", colnames(data_new1))
+head(data_new1)                       
+data2 = data_new1
+```
+
+#Convert chars to factor
+```{r}
+data2[sapply(data2, is.character)] <- lapply(data2[sapply(data2, is.character)], as.factor)
+
+#########Summary of data i need 
+data2 %>% tabyl(species_id, Trap_type)
+data2 %>% tabyl(species_id, Trap_colour)
+data2 %>% tabyl(species_id, sex)
+
+###'<U+2640>' = 'female'
+###'<U+2642>' = 'male'
+```
+
+
+```{r}
+#datset to males and females
+Females = data2 %>% split(data2$sex_coded)
+FemalesData = Females$`1`
+MalesData = Females$`2`
+
+```
+
+
+
+####Trap types####
+
+**2. Trap_Type**
+
+**2.1 Abundance of species per Trap type**
+```{r}
+data2 %>% tabyl(species_id, Trap_type) %>% {. ->> Trap_type } %>% 
+  adorn_totals( where = 'row') %>%
+  adorn_totals( where = 'col') %>%
+  kbl(caption = "Abundance of species per Trap_type") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+```
+```{r}
+Trap_type %>%
+  rowwise() %>% 
+  mutate(
+    X2 = chisq.test(c(`net trap`, `resting cage`))$statistic,
+    p_value = chisq.test(c(`net trap`, `resting cage`))$p.value
+    ) %>% kbl(caption = "Trap type") %>% kable_classic(full_width = F, html_font = "Times new roman")
+
+```
+
+
+
+```{r}  
+#Preprocessing and ANOVA
+colnames(Trap_type)<- c('species_id','net_trap','resting_cage')
+a = gather(Trap_type, "Traps", "Abundance", !1)
+oneway <- aov(Abundance ~ Traps, data = a)
+summary(oneway)
+```
+
+
+```{r} 
+#General linear model for Abundance and trap type
+Trap_Glm = glm(Abundance ~ Traps, data = a)
+Trap_Glm
+```
+
+
+**2.2 Diversity according to Trap type**
+```{r}
+#Shannon index
+data2 %>% tabyl(Trap_type, species_id) %>% 
+  untabyl() %>% 
+  select(!Trap_type)%>% 
+  diversity(index = "shannon") %>% 
+  cbind(c('net_trap', 'resting_cage' )) %>%  
+  kbl(caption = "Shannon indexes per Trap type") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+```
+
+```{r}
+#Shannon index
+data2 %>% tabyl(Trap_type, species_id) %>%   
+  untabyl() %>% 
+  select(!Trap_type)%>% 
+  diversity(index = "shannon") %>% 
+  cbind(c('net_trap', 'resting_cage' )) %>%  
+  kbl(caption = "Shannon indexes per Trap type") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+```
+
+
+```{r}
+#Simpson index
+data2 %>% tabyl(Trap_type, species_id) %>% 
+  untabyl() %>% 
+  select(!Trap_type)%>% 
+  diversity(index = "simpson") %>% 
+  cbind(c('net_trap', 'resting_cage')) %>%  
+  kbl(caption = "Simpson indexes per Trap type") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+```
+
+
+```{r}
+#ACE 
+data2 %>% tabyl(species_id, Trap_type) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, ACE)
+```
+
+```{r}
+#Chao1
+data2 %>% tabyl(species_id, Trap_type) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, chao1)
+```
+
+***Trap type Diversity females***
+```{r}
+#Shannon index
+FemalesData %>% tabyl(Trap_type, species_id) %>%   
+  untabyl() %>% 
+  select(!Trap_type)%>% 
+  diversity(index = "shannon") %>% 
+  cbind(c('net_trap', 'resting_cage' )) %>%  
+  kbl(caption = "Shannon indexes per Trap type") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+```
+
+```{r}
+#Simpson index
+FemalesData %>% tabyl(Trap_type, species_id) %>% 
+  untabyl() %>% 
+  select(!Trap_type)%>% 
+  diversity(index = "simpson") %>% 
+  cbind(c('net_trap', 'resting_cage')) %>%  
+  kbl(caption = "Simpson indexes per Trap type") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+```
+
+
+```{r}
+#ACE 
+FemalesData %>% tabyl(species_id, Trap_type) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, ACE)
+```
+
+```{r}
+#Chao1
+FemalesData %>% tabyl(species_id, Trap_type) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, chao1)
+```
+
+
+***Trap type Diversity Males***
+```{r}
+#Shannon index
+MalesData %>% tabyl(Trap_type, species_id) %>%   
+  untabyl() %>% 
+  select(!Trap_type)%>% 
+  diversity(index = "shannon") %>% 
+  cbind(c('net_trap', 'resting_cage' )) %>%  
+  kbl(caption = "Shannon indexes per Trap type") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+```
+
+
+```{r}
+#Simpson index
+MalesData %>% tabyl(Trap_type, species_id) %>% 
+  untabyl() %>% 
+  select(!Trap_type)%>% 
+  diversity(index = "simpson") %>% 
+  cbind(c('net_trap', 'resting_cage')) %>%  
+  kbl(caption = "Simpson indexes per Trap type") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+```
+
+
+```{r}
+#ACE 
+MalesData %>% tabyl(species_id, Trap_type) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, ACE)
+```
+
+```{r}
+#Chao1
+MalesData %>% tabyl(species_id, Trap_type) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, chao1)
+```
+
+
+
+
+
+####trap colour####
+
+**3. Trap colour**
+
+**3.1 Abundance of species per Trap colour**
+```{r}
+data2 %>% tabyl(species_id, Trap_colour) %>% {. ->> Trap_colour } %>% 
+  adorn_totals( where = 'row') %>%
+  adorn_totals( where = 'col') %>%
+  kbl(caption = "Abundance of species per Trap_colour") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+```
+```{r}
+
+Trap_colour %>%
+  rowwise() %>% 
+  mutate(
+    X2 = chisq.test(c(`black`,`blue`,`green`,`pink`,`white`))$statistic,
+    p_value = chisq.test(c(`black`,`blue`,`green`,`pink`,`white`))$p.value
+    ) %>% kbl(caption = "Trap colour") %>% kable_classic(full_width = F, html_font = "Times new roman")
+```
+
+
+
+```{r}  
+#Preprocessing and ANOVA
+colnames(Trap_colour)<- c("species_id","black","blue","green","pink","white")
+a = gather(Trap_colour, "colours", "Abundance", !1)
+oneway <- aov(Abundance ~ colours, data = a)
+summary(oneway)
+```
+
+```{r} 
+#General linear model for Abundance and trap colour
+Trapcol_Glm = glm(Abundance ~ colours, data = a)
+Trapcol_Glm
+```
+
+
+**3.2 Diversity according to Trap colour**
+```{r}
+#Shannon index
+data2 %>% tabyl(Trap_colour, species_id) %>% 
+  untabyl() %>% 
+  select(!Trap_colour)%>% 
+  diversity(index = "shannon") %>% 
+  cbind(c("black","blue","green","pink","white")) %>%  
+  kbl(caption = "Shannon indexes per Trap colour") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+```
+
+
+```{r}
+#Simpson index
+data2 %>% tabyl(Trap_colour, species_id) %>% 
+  untabyl() %>% 
+  select(!Trap_colour)%>% 
+  diversity(index = "simpson") %>% 
+  cbind(c("black","blue","green","pink","white")) %>%  
+  kbl(caption = "Simpson indexes per Trap colour") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+```
+
+```{r}
+#ACE 
+data2 %>% tabyl(species_id, Trap_colour) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, ACE)
+```
+
+```{r}
+#Chao1
+data2 %>% tabyl(species_id, Trap_colour) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, chao1)
+```
+
+***Trap colour Diversity of females***
+```{r}
+#Shannon index
+FemalesData %>% tabyl(Trap_colour, species_id) %>% 
+  untabyl() %>% 
+  select(!Trap_colour)%>% 
+  diversity(index = "shannon") %>% 
+  cbind(c("black","blue","green","pink","white")) %>%  
+  kbl(caption = "Shannon indexes per Trap colour") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+```
+
+
+```{r}
+#Simpson index
+FemalesData %>% tabyl(Trap_colour, species_id) %>% 
+  untabyl() %>% 
+  select(!Trap_colour)%>% 
+  diversity(index = "simpson") %>% 
+  cbind(c("black","blue","green","pink","white")) %>%  
+  kbl(caption = "Simpson indexes per Trap colour") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+```
+
+```{r}
+#ACE 
+FemalesData %>% tabyl(species_id, Trap_colour) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, ACE)
+```
+
+```{r}
+#Chao1
+FemalesData %>% tabyl(species_id, Trap_colour) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, chao1)
+```
+
+
+***Trap colour Diversity of Males***
+```{r}
+#Shannon index
+MalesData %>% tabyl(Trap_colour, species_id) %>% 
+  untabyl() %>% 
+  select(!Trap_colour)%>% 
+  diversity(index = "shannon") %>% 
+  cbind(c("black","blue","green","pink","white")) %>%  
+  kbl(caption = "Shannon indexes per Trap colour") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+```
+
+
+```{r}
+#Simpson index
+MalesData %>% tabyl(Trap_colour, species_id) %>% 
+  untabyl() %>% 
+  select(!Trap_colour)%>% 
+  diversity(index = "simpson") %>% 
+  cbind(c("black","blue","green","pink","white")) %>%  
+  kbl(caption = "Simpson indexes per Trap colour") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+```
+
+```{r}
+#ACE 
+MalesData %>% tabyl(species_id, Trap_colour) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, ACE)
+```
+
+```{r}
+#Chao1
+MalesData %>% tabyl(species_id, Trap_colour) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, chao1)
+```
+
+####Baits####
+
+**3. Baits**
+  
+**3.1 Diversity according to baits used**
+
+```{r}
+data2 %>% tabyl(species_id, baits_used) %>% {. ->> Bait } %>%
+  adorn_totals( where = 'row') %>%
+  adorn_totals( where = 'col') %>%
+  kbl(caption = "Abundance of species per bait used") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+```
+```{r}
+Bait %>%
+  rowwise() %>% 
+  mutate(
+    X2 = chisq.test(c(`Carbon dioxide`,`chicken`,`no bait`,`pigeon`))$statistic,
+    p_value = chisq.test(c(`Carbon dioxide`,`chicken`,`no bait`,`pigeon`))$p.value
+    ) %>% kbl(caption = "Bait") %>% kable_classic(full_width = F, html_font = "Times new roman")
+```
+
+
+
+```{r}
+#Preprocessing and ANOVA
+Bait1 = Bait %>% gather( "Bait", "Abundance", !1) 
+aov(Abundance ~ Bait, data = Bait1) %>% 
+  summary()
+#plot(Bait1$Bait ~ Bait1$Abundance, ylim = 0)
+```
+
+```{r} 
+#General linear model for Abundance and bait type
+Bait_Glm = glm(Abundance ~ Bait, data = Bait1)
+Bait_Glm
+```
+
+
+**3.2 Diversity according to Bait used**
+
+```{r}
+#Shannon index
+data2 %>% tabyl(baits_used, species_id) %>% 
+  untabyl() %>% 
+  select(!baits_used)%>% 
+  diversity(index = "shannon") %>% 
+  cbind(c("Carbon dioxide", "chicken","no bait","pigeon")) %>%  
+  kbl(caption = "Shannon indexes per bait used") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+```
+
+```{r}
+#Simpson index
+data2 %>% tabyl(baits_used, species_id) %>% 
+  untabyl() %>% 
+  select(!baits_used)%>% 
+  diversity(index = "simpson") %>% 
+  cbind(c("Carbon dioxide", "chicken","no bait","pigeon")) %>%  
+  kbl(caption = "Simpson indexes per bait used") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+```
+
+```{r}
+#ACE 
+data2 %>% tabyl(species_id, baits_used) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, ACE)
+```
+
+```{r}
+#Chao1
+data2 %>% tabyl(species_id, baits_used) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, chao1)
+```
+
+***bait use Diversity of females ***
+```{r}
+#Shannon index
+FemalesData %>% tabyl(baits_used, species_id) %>% 
+  untabyl() %>% 
+  select(!baits_used)%>% 
+  diversity(index = "shannon") %>% 
+  cbind(c("Carbon dioxide", "chicken","no bait","pigeon")) %>%  
+  kbl(caption = "Shannon indexes per bait used") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+```
+
+```{r}
+#Simpson index
+FemalesData %>% tabyl(baits_used, species_id) %>% 
+  untabyl() %>% 
+  select(!baits_used)%>% 
+  diversity(index = "simpson") %>% 
+  cbind(c("Carbon dioxide", "chicken","no bait","pigeon")) %>%  
+  kbl(caption = "Simpson indexes per bait used") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+```
+
+```{r}
+#ACE 
+FemalesData %>% tabyl(species_id, baits_used) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, ACE)
+```
+
+```{r}
+#Chao1
+FemalesData %>% tabyl(species_id, baits_used) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, chao1)
+```
+
+***bait use Diversity of Males ***
+```{r}
+#Shannon index
+MalesData %>% tabyl(baits_used, species_id) %>% 
+  untabyl() %>% 
+  select(!baits_used)%>% 
+  diversity(index = "shannon") %>% 
+  cbind(c("Carbon dioxide", "chicken","no bait","pigeon")) %>%  
+  kbl(caption = "Shannon indexes per bait used") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+```
+
+```{r}
+#Simpson index
+MalesData %>% tabyl(baits_used, species_id) %>% 
+  untabyl() %>% 
+  select(!baits_used)%>% 
+  diversity(index = "simpson") %>% 
+  cbind(c("Carbon dioxide", "chicken","no bait","pigeon")) %>%  
+  kbl(caption = "Simpson indexes per bait used") %>%
+  kable_classic(full_width = F, html_font = "Times new roman")
+```
+
+```{r}
+#ACE 
+MalesData %>% tabyl(species_id, baits_used) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, ACE)
+```
+
+```{r}
+#Chao1
+MalesData %>% tabyl(species_id, baits_used) %>% 
+  untabyl() %>% select(!species_id)%>% apply( MARGIN = 2, chao1)
+```
